@@ -1,3 +1,4 @@
+#include <iostream>
 #include "LexicalAnalyzer.h"
 #include "SyntaxAnalyzer.h"
 #include "Token.h"
@@ -5,6 +6,7 @@
 
 using namespace std;
 
+// Constructor: Initialize the syntax analyzer with a lexical analyzer
 SyntaxAnalyzer::SyntaxAnalyzer(LexicalAnalyzer *l)
 {
   la = l;
@@ -12,6 +14,7 @@ SyntaxAnalyzer::SyntaxAnalyzer(LexicalAnalyzer *l)
   nextTokenCode = nextToken->getTokenCode();
 }
 
+// Error handling: Display error message and exit
 void SyntaxAnalyzer::error(TokenCodes tokenCodes)
 {
   cout << endl;
@@ -79,10 +82,10 @@ void SyntaxAnalyzer::Function()
     error(LPAREN);
   }
 
-  void Paramlist();
-
   nextToken = la->getNextToken();
   nextTokenCode = nextToken->getTokenCode();
+
+  Paramlist();
 
   if (nextTokenCode != TokenCodes::RPAREN)
   {
@@ -103,6 +106,7 @@ void SyntaxAnalyzer::Paramlist()
   {
     Parameters();
   }
+  // If no parameters, just continue (empty parameter list is valid)
 }
 
 void SyntaxAnalyzer::Parameters()
@@ -153,6 +157,8 @@ void SyntaxAnalyzer::Compstmt()
   {
     error(RBRACE);
   }
+  nextToken = la->getNextToken();
+  nextTokenCode = nextToken->getTokenCode();
 }
 
 void SyntaxAnalyzer::Seqofstmt()
@@ -209,51 +215,62 @@ void SyntaxAnalyzer::Statement()
     {
       error(SEMICOLON);
     }
+    nextToken = la->getNextToken();
+    nextTokenCode = nextToken->getTokenCode();
+    break;
+
   //<STATEMENT> → <EXPRESSION> ;
 
 //<STATEMENT> → for ( <EXPRESSION> ; <EXPRESSION> ; <EXPRESSION> ) <BLOCK>
   case(FORSYM):
-      nextToken = la->getNextToken();
+    nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
     if(nextTokenCode != LPAREN){
       error(LPAREN);
     }
-    Expression();
-          nextToken = la->getNextToken();
+    nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
+    Expression();
     if(nextTokenCode != SEMICOLON){
       error(SEMICOLON);
     }
-    Expression();
-          nextToken = la->getNextToken();
+    nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
+    Expression();
     if(nextTokenCode != SEMICOLON){
       error(SEMICOLON);
     }
-            nextToken = la->getNextToken();
+    nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
+    Expression();
     if(nextTokenCode != RPAREN){
       error(RPAREN);
     }
+    nextToken = la->getNextToken();
+    nextTokenCode = nextToken->getTokenCode();
     Block();
     break;
 
 //<STATEMENT> → if ( <EXPRESSION> ) <BLOCK> and <STATEMENT> → if ( <EXPRESSION> ) <BLOCK> else <BLOCK> 
 case(IFSYM):
-            nextToken = la->getNextToken();
+    nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
     if(nextTokenCode != LPAREN){
-      error(RPAREN);
+      error(LPAREN);
     }
-    Expression();
-                nextToken = la->getNextToken();
+    nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
+    Expression();
     if(nextTokenCode != RPAREN){
       error(RPAREN);
     }
+    nextToken = la->getNextToken();
+    nextTokenCode = nextToken->getTokenCode();
     Block();
 
     if(nextTokenCode == ELSESYM){
+      nextToken = la->getNextToken();
+      nextTokenCode = nextToken->getTokenCode();
       Block();
     }
     break;
@@ -277,13 +294,15 @@ case(IFSYM):
     {
       error(SEMICOLON);
     }
+    nextToken = la->getNextToken();
+    nextTokenCode = nextToken->getTokenCode();
     break;
 
   //<STATEMENT> → return <EXPRESSION> ;
   case (RETURNSYM):
-    Expression();
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
+    Expression();
     if (nextTokenCode != SEMICOLON)
     {
       error(SEMICOLON);
@@ -312,6 +331,8 @@ case(IFSYM):
     {
       error(SEMICOLON);
     }
+    nextToken = la->getNextToken();
+    nextTokenCode = nextToken->getTokenCode();
     break;
 
   //<STATEMENT> → while ( <EXPRESSION> ) <BLOCK>
@@ -322,9 +343,9 @@ case(IFSYM):
     {
       error(LPAREN);
     }
-    Expression();
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
+    Expression();
     if (nextTokenCode != RPAREN)
     {
       error(RPAREN);
@@ -333,6 +354,39 @@ case(IFSYM):
     nextTokenCode = nextToken->getTokenCode();
     Block();
     break;
+    
+  // Handle assignment statements and expressions  
+  case (IDENT):
+    nextToken = la->getNextToken();
+    nextTokenCode = nextToken->getTokenCode();
+    if (nextTokenCode == ASSIGN)
+    {
+      nextToken = la->getNextToken();
+      nextTokenCode = nextToken->getTokenCode();
+      Expression();
+    }
+    else if (nextTokenCode == EQL)
+    {
+      // Handle equality comparison like "x == 10"
+      nextToken = la->getNextToken();
+      nextTokenCode = nextToken->getTokenCode();
+      Expression();
+    }
+    else
+    {
+      // Handle other expressions that might start with an identifier
+      // but since we already consumed the IDENT, we need to continue from where we are
+      Or();
+    }
+    
+    if (nextTokenCode != SEMICOLON)
+    {
+      error(SEMICOLON);
+    }
+    nextToken = la->getNextToken();
+    nextTokenCode = nextToken->getTokenCode();
+    break;
+    
   default:
     error(IDENT);
     break;
@@ -357,6 +411,14 @@ void SyntaxAnalyzer::Identlist()
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
 
+    // Handle optional initialization
+    if (nextTokenCode == ASSIGN)
+    {
+      nextToken = la->getNextToken();
+      nextTokenCode = nextToken->getTokenCode();
+      Expression();
+    }
+
     if (nextTokenCode == SEMICOLON)
       break;
 
@@ -371,26 +433,18 @@ void SyntaxAnalyzer::Identlist()
 
 void SyntaxAnalyzer::Block()
 {
-  Compstmt();
-  Statement();
+  if (nextTokenCode == LBRACE)
+  {
+    Compstmt();
+  }
+  else
+  {
+    Statement();
+  }
 }
 
 void SyntaxAnalyzer::Expression()
 {
-  nextToken = la->getNextToken();
-  nextTokenCode = nextToken->getTokenCode();
-
-  while (nextTokenCode == IDENT)
-  {
-    nextToken = la->getNextToken();
-    nextTokenCode = nextToken->getTokenCode();
-    if (nextTokenCode != EQL)
-    {
-      error(EQL);
-    }
-    nextToken = la->getNextToken();
-    nextTokenCode = nextToken->getTokenCode();
-  }
   Or();
 }
 
@@ -406,6 +460,7 @@ void SyntaxAnalyzer::OrPrime()
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
     And();
+    OrPrime();
   }
   else
   {
@@ -425,6 +480,7 @@ void SyntaxAnalyzer::AndPrime()
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
     Equality();
+    AndPrime();
   }
   else
   {
@@ -439,11 +495,12 @@ void SyntaxAnalyzer::Equality()
 
 void SyntaxAnalyzer::EqualityPrime()
 {
-  if ((nextTokenCode == EQL) && (nextTokenCode == NEQ))
+  if ((nextTokenCode == EQL) || (nextTokenCode == NEQ))
   {
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
     Relational();
+    EqualityPrime();
   }
   else
   {
@@ -458,11 +515,12 @@ void SyntaxAnalyzer::Relational()
 
 void SyntaxAnalyzer::RelationalPrime()
 {
-  if ((nextTokenCode == LSS) && (nextTokenCode == LEQ) && (nextTokenCode == GTR) && (nextTokenCode == GEQ))
+  if ((nextTokenCode == LSS) || (nextTokenCode == LEQ) || (nextTokenCode == GTR) || (nextTokenCode == GEQ))
   {
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
     Term();
+    RelationalPrime();
   }
   else
   {
@@ -477,11 +535,12 @@ void SyntaxAnalyzer::Term()
 
 void SyntaxAnalyzer::TermPrime()
 {
-  if ((nextTokenCode == PLUS) && (nextTokenCode == MINUS))
+  if ((nextTokenCode == PLUS) || (nextTokenCode == MINUS))
   {
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
     Factor();
+    TermPrime();
   }
   else
   {
@@ -496,11 +555,12 @@ void SyntaxAnalyzer::Factor()
 
 void SyntaxAnalyzer::FactorPrime()
 {
-  if ((nextTokenCode == TIMES) && (nextTokenCode == SLASH) && (nextTokenCode == MOD))
+  if ((nextTokenCode == TIMES) || (nextTokenCode == SLASH) || (nextTokenCode == MOD))
   {
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
     Unary();
+    FactorPrime();
   }
   else
   {
@@ -513,7 +573,6 @@ void SyntaxAnalyzer::Unary()
   {
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
-    Primary();
   }
   Primary();
 }
@@ -525,13 +584,20 @@ void SyntaxAnalyzer::Primary()
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
     Expression();
-    if (nextTokenCode == RPAREN)
+    if (nextTokenCode != RPAREN)
     {
       error(RPAREN);
     }
-    else if ((nextTokenCode != IDENT) && (nextTokenCode != NUMLIT) && (nextTokenCode != TRUESYM) && (nextTokenCode != FALSESYM))
-    {
-      error(IDENT);
-    }
+    nextToken = la->getNextToken();
+    nextTokenCode = nextToken->getTokenCode();
+  }
+  else if ((nextTokenCode == IDENT) || (nextTokenCode == NUMLIT) || (nextTokenCode == TRUESYM) || (nextTokenCode == FALSESYM))
+  {
+    nextToken = la->getNextToken();
+    nextTokenCode = nextToken->getTokenCode();
+  }
+  else
+  {
+    error(IDENT);
   }
 }

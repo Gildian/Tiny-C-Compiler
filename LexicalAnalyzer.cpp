@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <cctype>
 
 #include "LexicalAnalyzer.h"
 #include "Token.h"
@@ -23,38 +24,71 @@ Token *LexicalAnalyzer::getNextToken()
     string newToken = "";
     char tokenPart = ' ';
 
-    while (!sourceCodeFile->eof() && tokenPart <= 32)
+    // Skip whitespace
+    while (!sourceCodeFile->eof() && isWhitespace(tokenPart))
     {
         sourceCodeFile->get(tokenPart);
-        tokenPart = tolower(tokenPart);
+        if (sourceCodeFile->eof()) 
+        {
+            t->setLexemeString("end of file");
+            t->setTokenCode(TokenCodes::EOI);
+            return t;
+        }
     }
 
-    while (!sourceCodeFile->eof() && !LexicalAnalyzer::validLexeme(newToken, tokenPart, LexicalAnalyzer::lexemes))
+    // Build the token
+    if (!sourceCodeFile->eof())
     {
         newToken += tokenPart;
-        char peekedToken = sourceCodeFile->peek();
-        string nextCharacter(1, peekedToken);
-
-        if (tokenPart == 10)
+        
+        // Check for two-character operators
+        if (!sourceCodeFile->eof())
         {
-            cout << endl;
+            char peekedToken = sourceCodeFile->peek();
+            string nextCharacter(1, peekedToken);
+            
+            if (LexicalAnalyzer::checkLongLexeme(newToken, nextCharacter))
+            {
+                sourceCodeFile->get(tokenPart);
+                newToken += tokenPart;
+            }
+            else
+            {
+                // Continue building token for identifiers and numbers
+                while (!sourceCodeFile->eof())
+                {
+                    char peeked = sourceCodeFile->peek();
+                    
+                    // Stop if we hit whitespace or EOF
+                    if (isWhitespace(peeked) || sourceCodeFile->eof())
+                        break;
+                        
+                    // Stop if next character would start a new token
+                    string peekStr(1, peeked);
+                    if (LexicalAnalyzer::checkNextCharacter(newToken, peekStr, LexicalAnalyzer::lexemes))
+                        break;
+                        
+                    // For identifiers and numbers, continue building
+                    if (isAlpha(newToken[0]) || isDigit(newToken[0]))
+                    {
+                        if (isAlpha(peeked) || isDigit(peeked) ||
+                            (peeked == '.' && isDigit(newToken[0])))
+                        {
+                            sourceCodeFile->get(tokenPart);
+                            newToken += tokenPart;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
         }
-
-        if (LexicalAnalyzer::checkLongLexeme(newToken, nextCharacter))
-        {
-            sourceCodeFile->get(tokenPart);
-            tokenPart = tolower(tokenPart);
-            newToken += tokenPart;
-            break;
-        }
-
-        if (LexicalAnalyzer::checkNextCharacter(newToken, nextCharacter, LexicalAnalyzer::lexemes) || peekedToken <= 32)
-        {
-            break;
-        }
-
-        sourceCodeFile->get(tokenPart);
-        tokenPart = tolower(tokenPart);
     }
 
     cout << newToken << " ";
@@ -90,6 +124,9 @@ Token *LexicalAnalyzer::getNextToken()
     else if (newToken == "*") t->setTokenCode(TIMES);
     else if (newToken == "/") t->setTokenCode(SLASH);
     else if (newToken == ";") t->setTokenCode(SEMICOLON);
+    else if (newToken == "=") t->setTokenCode(ASSIGN);
+    else if (newToken == "!") t->setTokenCode(NOT);
+    else if (newToken == "%") t->setTokenCode(MOD);
     else if (newToken == "true") t->setTokenCode(TRUESYM);
     else
     {
@@ -102,11 +139,11 @@ Token *LexicalAnalyzer::getNextToken()
 
 bool LexicalAnalyzer::checkNextCharacter(string &newToken, string &nextToken, string lexemes[])
 {
-    for (int i = 0; i < 35; i++)
+    for (int i = 0; i < LEXEME_COUNT; i++)
     {
         if (lexemes[i] == nextToken)
         {
-            if (nextToken == "." && (newToken[0] >= 48 && newToken[0] <= 57))
+            if (nextToken == "." && isDigit(newToken[0]))
             {
                 return false;
             }
@@ -118,11 +155,12 @@ bool LexicalAnalyzer::checkNextCharacter(string &newToken, string &nextToken, st
 
 bool LexicalAnalyzer::validLexeme(string &token, char tokenpart, string lexemes[])
 {
-    for (int i = 0; i < 35; i++)
+    for (int i = 0; i < LEXEME_COUNT; i++)
     {
         if (lexemes[i] == token)
         {
-            if (token[0] >= 97 && token[0] <= 122 && tokenpart >= 97 && tokenpart <= 122)
+            // Don't allow keywords to be extended with alphabetic characters
+            if (isAlpha(token[0]) && (isAlpha(tokenpart) || isDigit(tokenpart)))
             {
                 return false;
             }
@@ -155,12 +193,40 @@ bool LexicalAnalyzer::checkLongLexeme(string &token, string &nextToken)
             return true;
         }
     }
+    else if (token == "!")
+    {
+        if (nextToken == "=")
+        {
+            return true;
+        }
+    }
+    else if (token == "=")
+    {
+        if (nextToken == "=")
+        {
+            return true;
+        }
+    }
+    else if (token == "&")
+    {
+        if (nextToken == "&")
+        {
+            return true;
+        }
+    }
+    else if (token == "|")
+    {
+        if (nextToken == "|")
+        {
+            return true;
+        }
+    }
     return false;
 }
 
 TokenCodes LexicalAnalyzer::tokenCodeSolver(string &token, string lexemes[])
 {
-    for (int i = 0; i < 35; i++)
+    for (int i = 0; i < LEXEME_COUNT; i++)
     {
         if (lexemes[i] == token)
         {
@@ -168,34 +234,28 @@ TokenCodes LexicalAnalyzer::tokenCodeSolver(string &token, string lexemes[])
             return result;
         }
     }
-    if (token[0] >= 97 && token[0] <= 122)
+    if (isAlpha(token[0]))
     {
-        for (int i = 0; i < token.length(); i++)
+        for (size_t i = 0; i < token.length(); i++)
         {
-            if ((token[i] < 48 || token[i] > 57) && (token[i] < 97 || token[i] > 122))
+            if (!isDigit(token[i]) && !isAlpha(token[i]))
             {
                 return TokenCodes::NAL;
             }
         }
         return TokenCodes::IDENT;
     }
-    else if (token[0] >= 48 && token[0] <= 57)
+    else if (isDigit(token[0]))
     {
-        for (int i = 0; i < token.length(); i++)
+        bool hasDecimal = false;
+        for (size_t i = 0; i < token.length(); i++)
         {
-            if (token[i] < 48 || token[i] > 57)
+            if (!isDigit(token[i]))
             {
-                if (token[i] == 46)
+                if (token[i] == '.' && !hasDecimal)  // '.' character
                 {
-                    i++;
-                    for (i = 0; i < token.length(); i++)
-                    {
-                        if (token[i] < 48 || token[i] > 57)
-                        {
-                            return TokenCodes::NAL;
-                        }
-                    }
-                    return TokenCodes::NUMLIT;
+                    hasDecimal = true;
+                    continue;
                 }
                 else
                 {
@@ -214,4 +274,19 @@ TokenCodes LexicalAnalyzer::tokenCodeSolver(string &token, string lexemes[])
 int LexicalAnalyzer::getCurrentTokenPosition()
 {
     return currentTokenPosition;
+}
+
+bool LexicalAnalyzer::isAlpha(char c) const
+{
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
+
+bool LexicalAnalyzer::isDigit(char c) const
+{
+    return c >= '0' && c <= '9';
+}
+
+bool LexicalAnalyzer::isWhitespace(char c) const
+{
+    return c <= 32 && c != EOF;
 }

@@ -2,6 +2,7 @@
 #define LEXICALANALYZER_H
 
 #include <fstream>
+#include <string>
 
 #include "Token.h"
 #include "TokenCodes.h"
@@ -11,7 +12,8 @@ using namespace std;
 class LexicalAnalyzer
 {
 private:
-    string lexemes[35] = {"+", "-", "*", "/", "%", "(", ")", "{", "}", ",", ";", "||", "&&",
+    static const int LEXEME_COUNT = 35;
+    string lexemes[LEXEME_COUNT] = {"+", "-", "*", "/", "%", "(", ")", "{", "}", ",", ";", "||", "&&",
                         "=", "==", "!", "!=", "<", "<=", ">", ">=", "bool", "do", "else", "false", "float", "for",
                         "if", "int", "printf", "return", "scanf", "true", "void", "while"};
   ifstream *sourceCodeFile;
@@ -20,6 +22,11 @@ private:
   TokenCodes tokenCodeSolver(string &, string[]);
   bool checkNextCharacter(string &, string &, string[]);
   int currentTokenPosition;
+  
+  // Helper functions for better code organization
+  bool isAlpha(char c) const;
+  bool isDigit(char c) const;
+  bool isWhitespace(char c) const;
 
 public:
   LexicalAnalyzer(ifstream *);
