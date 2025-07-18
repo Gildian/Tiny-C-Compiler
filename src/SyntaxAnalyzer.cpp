@@ -12,30 +12,87 @@ SyntaxAnalyzer::SyntaxAnalyzer(LexicalAnalyzer *l)
   la = l;
   nextToken = la->getNextToken();
   nextTokenCode = nextToken->getTokenCode();
+  semanticAnalyzer = new SemanticAnalyzer();
+  currentLine = 1;
 }
 
-// Error handling: Display error message and exit
-void SyntaxAnalyzer::error(TokenCodes tokenCodes)
+// Destructor: Clean up semantic analyzer
+SyntaxAnalyzer::~SyntaxAnalyzer()
+{
+  delete semanticAnalyzer;
+}
+
+// Error handling: Display user-friendly error message and exit
+void SyntaxAnalyzer::error(TokenCodes expectedToken)
 {
   cout << endl;
-  int spaces = this->la->getCurrentTokenPosition();
-  string indent = "     ";
-  for (int i = 0; i < spaces; i++)
-  {
-    indent += " ";
+  cout << "===============================================" << endl;
+  cout << "SYNTAX ERROR" << endl;
+  cout << "===============================================" << endl;
+  
+  // Create user-friendly error messages
+  string expectedDescription = getTokenDescription(expectedToken);
+  string currentToken = nextToken ? nextToken->getLexemeString() : "end of file";
+  
+  cout << "Expected: " << expectedDescription << endl;
+  
+  if (nextToken && !nextToken->getLexemeString().empty()) {
+    cout << "Found:    '" << currentToken << "'" << endl;
+  } else {
+    cout << "Found:    end of file" << endl;
   }
-  string tcs[] =
-      {
-          "PLUS", "MINUS", "TIMES", "SLASH", "MOD", "LPAREN", "RPAREN", "LBRACE",
-          "RBRACE", "COMMA", "SEMICOLON", "OR", "AND", "ASSIGN", "EQL", "NOT", "NEQ",
-          "LSS", "LEQ", "GTR", "GEQ", "BOOLSYM", "DOSYM", "ELSESYM", "FALSESYM",
-          "FLOATSYM", "FORSYM", "IFSYM", "INTSYM", "PRINTFSYM", "RETURNSYM",
-          "SCANFSYM", "TRUESYM", "VOIDSYM", "WHILESYM", "IDENT", "NUMLIT", "EOI",
-          "NAL"};
-
-  cout << indent << "^" << endl;
-  cout << indent << "Error: " << tcs[tokenCodes] << " expected" << endl;
+  
+  cout << "Line:     " << currentLine << endl;
+  cout << "===============================================" << endl;
+  cout << "Please check your syntax and try again." << endl;
+  cout << "===============================================" << endl;
   exit(-1);
+}
+
+// Helper function to convert token codes to user-friendly descriptions
+string SyntaxAnalyzer::getTokenDescription(TokenCodes token)
+{
+  switch (token) {
+    case PLUS: return "'+' (addition operator)";
+    case MINUS: return "'-' (subtraction operator)";
+    case TIMES: return "'*' (multiplication operator)";
+    case SLASH: return "'/' (division operator)";
+    case MOD: return "'%' (modulo operator)";
+    case LPAREN: return "'(' (left parenthesis)";
+    case RPAREN: return "')' (right parenthesis)";
+    case LBRACE: return "'{' (left brace)";
+    case RBRACE: return "'}' (right brace)";
+    case COMMA: return "',' (comma)";
+    case SEMICOLON: return "';' (semicolon)";
+    case OR: return "'||' (logical OR)";
+    case AND: return "'&&' (logical AND)";
+    case ASSIGN: return "'=' (assignment operator)";
+    case EQL: return "'==' (equality operator)";
+    case NOT: return "'!' (logical NOT)";
+    case NEQ: return "'!=' (not equal operator)";
+    case LSS: return "'<' (less than operator)";
+    case LEQ: return "'<=' (less than or equal operator)";
+    case GTR: return "'>' (greater than operator)";
+    case GEQ: return "'>=' (greater than or equal operator)";
+    case BOOLSYM: return "data type (int, float, bool, or void)";
+    case DOSYM: return "'do' keyword";
+    case ELSESYM: return "'else' keyword";
+    case FALSESYM: return "'false' keyword";
+    case FLOATSYM: return "'float' keyword";
+    case FORSYM: return "'for' keyword";
+    case IFSYM: return "'if' keyword";
+    case INTSYM: return "'int' keyword";
+    case PRINTFSYM: return "'printf' function";
+    case RETURNSYM: return "'return' keyword";
+    case SCANFSYM: return "'scanf' function";
+    case TRUESYM: return "'true' keyword";
+    case VOIDSYM: return "'void' keyword";
+    case WHILESYM: return "'while' keyword";
+    case IDENT: return "identifier (variable or function name)";
+    case NUMLIT: return "number literal";
+    case EOI: return "end of input";
+    default: return "valid token";
+  }
 }
 
 void SyntaxAnalyzer::Program()
@@ -46,6 +103,9 @@ void SyntaxAnalyzer::Program()
   {
     error(EOI);
   }
+  
+  // Print semantic analysis results
+  printSemanticReport();
 }
 
 void SyntaxAnalyzer::Functions()
@@ -60,6 +120,8 @@ void SyntaxAnalyzer::Functions()
 
 void SyntaxAnalyzer::Function()
 {
+  TokenCodes returnType = nextTokenCode;
+  
   if (nextTokenCode != TokenCodes::BOOLSYM &&
       nextTokenCode != TokenCodes::FLOATSYM &&
       nextTokenCode != TokenCodes::INTSYM &&
@@ -70,10 +132,12 @@ void SyntaxAnalyzer::Function()
   nextToken = la->getNextToken();
   nextTokenCode = nextToken->getTokenCode();
 
+  string functionName = "";
   if (nextTokenCode != TokenCodes::IDENT)
   {
     error(IDENT);
   }
+  functionName = nextToken->getLexemeString();
   nextToken = la->getNextToken();
   nextTokenCode = nextToken->getTokenCode();
 
@@ -85,20 +149,31 @@ void SyntaxAnalyzer::Function()
   nextToken = la->getNextToken();
   nextTokenCode = nextToken->getTokenCode();
 
-  Paramlist();
+  // Enter function scope
+  semanticAnalyzer->enterScope();
+  
+  // Parse parameters and collect their types
+  vector<TokenCodes> paramTypes;
+  Paramlist(paramTypes);
 
   if (nextTokenCode != TokenCodes::RPAREN)
   {
     error(TokenCodes::RPAREN);
   }
 
+  // Declare function in symbol table
+  semanticAnalyzer->declareFunction(functionName, returnType, paramTypes, currentLine);
+
   nextToken = la->getNextToken();
   nextTokenCode = nextToken->getTokenCode();
 
   Compstmt();
+  
+  // Exit function scope
+  semanticAnalyzer->exitScope();
 }
 
-void SyntaxAnalyzer::Paramlist()
+void SyntaxAnalyzer::Paramlist(vector<TokenCodes>& paramTypes)
 {
   if (nextTokenCode == TokenCodes::BOOLSYM ||
       nextTokenCode == TokenCodes::FLOATSYM ||
@@ -123,6 +198,8 @@ void SyntaxAnalyzer::Parameters()
 
 void SyntaxAnalyzer::Parameter()
 {
+  TokenCodes paramType = nextTokenCode;
+  
   if (nextTokenCode != TokenCodes::BOOLSYM &&
       nextTokenCode != TokenCodes::FLOATSYM &&
       nextTokenCode != TokenCodes::INTSYM)
@@ -137,6 +214,9 @@ void SyntaxAnalyzer::Parameter()
   {
     error(TokenCodes::IDENT);
   }
+
+  string paramName = nextToken->getLexemeString();
+  semanticAnalyzer->declareParameter(paramName, paramType, currentLine);
 
   nextToken = la->getNextToken();
   nextTokenCode = nextToken->getTokenCode();
@@ -357,26 +437,32 @@ case(IFSYM):
     
   // Handle assignment statements and expressions  
   case (IDENT):
-    nextToken = la->getNextToken();
-    nextTokenCode = nextToken->getTokenCode();
-    if (nextTokenCode == ASSIGN)
     {
+      string varName = nextToken->getLexemeString();
       nextToken = la->getNextToken();
       nextTokenCode = nextToken->getTokenCode();
-      Expression();
-    }
-    else if (nextTokenCode == EQL)
-    {
-      // Handle equality comparison like "x == 10"
-      nextToken = la->getNextToken();
-      nextTokenCode = nextToken->getTokenCode();
-      Expression();
-    }
-    else
-    {
-      // Handle other expressions that might start with an identifier
-      // but since we already consumed the IDENT, we need to continue from where we are
-      Or();
+      if (nextTokenCode == ASSIGN)
+      {
+        // Check if variable is declared before assignment
+        semanticAnalyzer->checkVariableUsage(varName, currentLine);
+        nextToken = la->getNextToken();
+        nextTokenCode = nextToken->getTokenCode();
+        Expression();
+      }
+      else if (nextTokenCode == EQL)
+      {
+        // Handle equality comparison like "x == 10"
+        semanticAnalyzer->checkVariableUsage(varName, currentLine);
+        nextToken = la->getNextToken();
+        nextTokenCode = nextToken->getTokenCode();
+        Expression();
+      }
+      else
+      {
+        // Handle other expressions that might start with an identifier
+        // but since we already consumed the IDENT, we need to continue from where we are
+        Or();
+      }
     }
     
     if (nextTokenCode != SEMICOLON)
@@ -395,12 +481,13 @@ case(IFSYM):
 
 void SyntaxAnalyzer::Declaration()
 {
+  TokenCodes varType = nextTokenCode;
   nextToken = la->getNextToken();
   nextTokenCode = nextToken->getTokenCode();
-  Identlist();
+  Identlist(varType);
 }
 
-void SyntaxAnalyzer::Identlist()
+void SyntaxAnalyzer::Identlist(TokenCodes varType)
 {
   while (nextTokenCode != SEMICOLON)
   {
@@ -408,16 +495,12 @@ void SyntaxAnalyzer::Identlist()
     {
       error(IDENT);
     }
+    
+    string varName = nextToken->getLexemeString();
+    semanticAnalyzer->declareVariable(varName, varType, currentLine);
+    
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
-
-    // Handle optional initialization
-    if (nextTokenCode == ASSIGN)
-    {
-      nextToken = la->getNextToken();
-      nextTokenCode = nextToken->getTokenCode();
-      Expression();
-    }
 
     if (nextTokenCode == SEMICOLON)
       break;
@@ -591,7 +674,14 @@ void SyntaxAnalyzer::Primary()
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
   }
-  else if ((nextTokenCode == IDENT) || (nextTokenCode == NUMLIT) || (nextTokenCode == TRUESYM) || (nextTokenCode == FALSESYM))
+  else if (nextTokenCode == IDENT)
+  {
+    string varName = nextToken->getLexemeString();
+    semanticAnalyzer->checkVariableUsage(varName, currentLine);
+    nextToken = la->getNextToken();
+    nextTokenCode = nextToken->getTokenCode();
+  }
+  else if ((nextTokenCode == NUMLIT) || (nextTokenCode == TRUESYM) || (nextTokenCode == FALSESYM))
   {
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
@@ -600,4 +690,16 @@ void SyntaxAnalyzer::Primary()
   {
     error(IDENT);
   }
+}
+
+// Semantic analysis methods
+SemanticAnalyzer* SyntaxAnalyzer::getSemanticAnalyzer() const
+{
+  return semanticAnalyzer;
+}
+
+void SyntaxAnalyzer::printSemanticReport() const
+{
+  semanticAnalyzer->printSemanticReport();
+  semanticAnalyzer->printSymbolTable();
 }

@@ -3,6 +3,7 @@
 
 #include "LexicalAnalyzer.h"
 #include "SyntaxAnalyzer.h"
+#include "SemanticAnalyzer.h"
 
 using namespace std;
 
@@ -36,7 +37,17 @@ int main(int argc, char *argv[])
     cout << "Tokens: ";
     
     parser->Program();
-    cout << endl << "Parsing completed successfully!" << endl;
+    
+    // Check for semantic errors
+    if (parser->getSemanticAnalyzer()->hasErrors()) {
+      cout << endl << "Compilation failed due to semantic errors!" << endl;
+      delete la;
+      delete parser;
+      sourceCodeFile.close();
+      return 1;
+    }
+    
+    cout << endl << "Parsing and semantic analysis completed successfully!" << endl;
   }
   catch (const exception& e)
   {
