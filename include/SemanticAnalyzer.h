@@ -23,11 +23,13 @@ public:
     void enterScope();
     void exitScope();
     bool declareVariable(const string& name, TokenCodes type, int line);
+    bool declareArray(const string& name, TokenCodes type, int size, int line);
     bool declareFunction(const string& name, TokenCodes returnType, const vector<TokenCodes>& paramTypes, int line);
     bool declareParameter(const string& name, TokenCodes type, int line);
     
     // Semantic checks
     bool checkVariableUsage(const string& name, int line);
+    bool checkArrayAccess(const string& name, int line);
     bool checkFunctionCall(const string& name, int paramCount, int line);
     bool checkAssignment(const string& varName, DataType expressionType, int line);
     bool checkReturnType(DataType returnType, DataType expectedType, int line);

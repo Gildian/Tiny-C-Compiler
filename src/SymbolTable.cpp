@@ -42,6 +42,28 @@ bool SymbolTable::insertSymbol(const string& name, DataType type, SymbolType sym
     return true;
 }
 
+bool SymbolTable::insertArray(const string& name, DataType type, int size, int lineNumber) {
+    if (isDeclaredInCurrentScope(name)) {
+        cout << "Error: Array '" << name << "' already declared in current scope at line " << lineNumber << endl;
+        return false;
+    }
+    
+    if (size <= 0) {
+        cout << "Error: Array '" << name << "' must have positive size at line " << lineNumber << endl;
+        return false;
+    }
+    
+    SymbolInfo symbol(name, type, SymbolType::VARIABLE, currentScope, lineNumber);
+    symbol.isArray = true;
+    symbol.arraySize = size;
+    scopes[currentScope][name] = symbol;
+    
+    cout << "Inserted array '" << name << "' of type " << dataTypeToString(type) 
+         << "[" << size << "] at line " << lineNumber << endl;
+    
+    return true;
+}
+
 bool SymbolTable::insertFunction(const string& name, DataType returnType, const vector<DataType>& paramTypes, int lineNumber) {
     if (isDeclaredInCurrentScope(name)) {
         cout << "Error: Function '" << name << "' already declared in current scope at line " << lineNumber << endl;
@@ -99,7 +121,11 @@ void SymbolTable::printSymbolTable() const {
         for (const auto& pair : scopes[i]) {
             const SymbolInfo& symbol = pair.second;
             cout << "  " << symbol.name << " (" << symbolTypeToString(symbol.symbolType) 
-                 << ", " << dataTypeToString(symbol.dataType) << ", line " << symbol.lineNumber << ")";
+                 << ", " << dataTypeToString(symbol.dataType);
+            if (symbol.isArray) {
+                cout << "[" << symbol.arraySize << "]";
+            }
+            cout << ", line " << symbol.lineNumber << ")";
             if (symbol.symbolType == SymbolType::FUNCTION) {
                 cout << " - " << symbol.parameterCount << " parameters";
             }

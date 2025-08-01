@@ -41,6 +41,7 @@ class SyntaxAnalyzer
     void Declarations();
     void Declaration();
     void Identlist(TokenCodes varType);
+    void ArrayDeclaration(TokenCodes varType, const string& arrayName);
     void Compstmt();
     void Seqofstmt();
     void Block();

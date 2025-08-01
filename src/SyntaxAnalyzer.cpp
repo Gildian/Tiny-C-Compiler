@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string>
 #include "LexicalAnalyzer.h"
 #include "SyntaxAnalyzer.h"
 #include "Token.h"
@@ -62,6 +63,8 @@ string SyntaxAnalyzer::getTokenDescription(TokenCodes token)
     case RPAREN: return "')' (right parenthesis)";
     case LBRACE: return "'{' (left brace)";
     case RBRACE: return "'}' (right brace)";
+    case LBRACKET: return "'[' (left bracket)";
+    case RBRACKET: return "']' (right bracket)";
     case COMMA: return "',' (comma)";
     case SEMICOLON: return "';' (semicolon)";
     case OR: return "'||' (logical OR)";
@@ -441,9 +444,38 @@ case(IFSYM):
       string varName = nextToken->getLexemeString();
       nextToken = la->getNextToken();
       nextTokenCode = nextToken->getTokenCode();
-      if (nextTokenCode == ASSIGN)
+      
+      if (nextTokenCode == LBRACKET)
       {
-        // Check if variable is declared before assignment
+        // Array assignment: identifier[expression] = expression
+        semanticAnalyzer->checkArrayAccess(varName, currentLine);
+        
+        nextToken = la->getNextToken();
+        nextTokenCode = nextToken->getTokenCode();
+        
+        Expression(); // Parse the index expression
+        
+        if (nextTokenCode != RBRACKET)
+        {
+          error(RBRACKET);
+        }
+        nextToken = la->getNextToken();
+        nextTokenCode = nextToken->getTokenCode();
+        
+        if (nextTokenCode == ASSIGN)
+        {
+          nextToken = la->getNextToken();
+          nextTokenCode = nextToken->getTokenCode();
+          Expression();
+        }
+        else
+        {
+          error(ASSIGN);
+        }
+      }
+      else if (nextTokenCode == ASSIGN)
+      {
+        // Regular variable assignment
         semanticAnalyzer->checkVariableUsage(varName, currentLine);
         nextToken = la->getNextToken();
         nextTokenCode = nextToken->getTokenCode();
@@ -497,10 +529,19 @@ void SyntaxAnalyzer::Identlist(TokenCodes varType)
     }
     
     string varName = nextToken->getLexemeString();
-    semanticAnalyzer->declareVariable(varName, varType, currentLine);
-    
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
+
+    // Check if this is an array declaration
+    if (nextTokenCode == LBRACKET)
+    {
+      ArrayDeclaration(varType, varName);
+    }
+    else
+    {
+      // Regular variable declaration
+      semanticAnalyzer->declareVariable(varName, varType, currentLine);
+    }
 
     if (nextTokenCode == SEMICOLON)
       break;
@@ -512,6 +553,42 @@ void SyntaxAnalyzer::Identlist(TokenCodes varType)
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
   }
+}
+
+void SyntaxAnalyzer::ArrayDeclaration(TokenCodes varType, const string& arrayName)
+{
+  // We're already at the LBRACKET token
+  nextToken = la->getNextToken();
+  nextTokenCode = nextToken->getTokenCode();
+  
+  if (nextTokenCode != NUMLIT)
+  {
+    error(NUMLIT);
+  }
+  
+  // Parse array size
+  string sizeStr = nextToken->getLexemeString();
+  int arraySize = 0;
+  try {
+    arraySize = std::stoi(sizeStr);
+  } catch (const std::exception& e) {
+    cout << "Error: Invalid array size '" << sizeStr << "'" << endl;
+    exit(-1);
+  }
+  
+  nextToken = la->getNextToken();
+  nextTokenCode = nextToken->getTokenCode();
+  
+  if (nextTokenCode != RBRACKET)
+  {
+    error(RBRACKET);
+  }
+  
+  // Declare the array in the symbol table
+  semanticAnalyzer->declareArray(arrayName, varType, arraySize, currentLine);
+  
+  nextToken = la->getNextToken();
+  nextTokenCode = nextToken->getTokenCode();
 }
 
 void SyntaxAnalyzer::Block()
@@ -677,9 +754,32 @@ void SyntaxAnalyzer::Primary()
   else if (nextTokenCode == IDENT)
   {
     string varName = nextToken->getLexemeString();
-    semanticAnalyzer->checkVariableUsage(varName, currentLine);
     nextToken = la->getNextToken();
     nextTokenCode = nextToken->getTokenCode();
+    
+    // Check if this is array access
+    if (nextTokenCode == LBRACKET)
+    {
+      // Array access: identifier[expression]
+      semanticAnalyzer->checkArrayAccess(varName, currentLine);
+      
+      nextToken = la->getNextToken();
+      nextTokenCode = nextToken->getTokenCode();
+      
+      Expression(); // Parse the index expression
+      
+      if (nextTokenCode != RBRACKET)
+      {
+        error(RBRACKET);
+      }
+      nextToken = la->getNextToken();
+      nextTokenCode = nextToken->getTokenCode();
+    }
+    else
+    {
+      // Regular variable access
+      semanticAnalyzer->checkVariableUsage(varName, currentLine);
+    }
   }
   else if ((nextTokenCode == NUMLIT) || (nextTokenCode == TRUESYM) || (nextTokenCode == FALSESYM))
   {

@@ -34,6 +34,28 @@ bool SemanticAnalyzer::declareVariable(const string& name, TokenCodes type, int 
     return symbolTable->insertSymbol(name, dataType, SymbolType::VARIABLE, line);
 }
 
+bool SemanticAnalyzer::declareArray(const string& name, TokenCodes type, int size, int line) {
+    setCurrentLine(line);
+    DataType dataType = SymbolTable::tokenToDataType(type);
+    
+    if (dataType == DataType::UNKNOWN) {
+        addError("Invalid data type for array '" + name + "'");
+        return false;
+    }
+    
+    if (dataType == DataType::VOID) {
+        addError("Array '" + name + "' cannot be of type void");
+        return false;
+    }
+    
+    if (size <= 0) {
+        addError("Array '" + name + "' must have positive size");
+        return false;
+    }
+    
+    return symbolTable->insertArray(name, dataType, size, line);
+}
+
 bool SemanticAnalyzer::declareFunction(const string& name, TokenCodes returnType, const vector<TokenCodes>& paramTypes, int line) {
     setCurrentLine(line);
     DataType returnDataType = SymbolTable::tokenToDataType(returnType);
@@ -88,6 +110,33 @@ bool SemanticAnalyzer::checkVariableUsage(const string& name, int line) {
     SymbolInfo* symbol = symbolTable->lookupSymbol(name);
     if (symbol && symbol->symbolType == SymbolType::FUNCTION) {
         addError("'" + name + "' is a function, not a variable");
+        return false;
+    }
+    
+    return true;
+}
+
+bool SemanticAnalyzer::checkArrayAccess(const string& name, int line) {
+    setCurrentLine(line);
+    
+    if (!symbolTable->isDeclared(name)) {
+        addError("Undeclared array '" + name + "'");
+        return false;
+    }
+    
+    SymbolInfo* symbol = symbolTable->lookupSymbol(name);
+    if (!symbol) {
+        addError("Symbol '" + name + "' not found");
+        return false;
+    }
+    
+    if (symbol->symbolType == SymbolType::FUNCTION) {
+        addError("'" + name + "' is a function, not an array");
+        return false;
+    }
+    
+    if (!symbol->isArray) {
+        addError("'" + name + "' is not an array");
         return false;
     }
     

@@ -128,6 +128,8 @@ Token *LexicalAnalyzer::getNextToken()
     else if (newToken == "!") t->setTokenCode(NOT);
     else if (newToken == "%") t->setTokenCode(MOD);
     else if (newToken == "true") t->setTokenCode(TRUESYM);
+    else if (newToken == "[") t->setTokenCode(LBRACKET);
+    else if (newToken == "]") t->setTokenCode(RBRACKET);
     else
     {
         t->setTokenCode(LexicalAnalyzer::tokenCodeSolver(newToken, LexicalAnalyzer::lexemes));

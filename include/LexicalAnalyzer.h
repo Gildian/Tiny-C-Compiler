@@ -12,10 +12,10 @@ using namespace std;
 class LexicalAnalyzer
 {
 private:
-    static const int LEXEME_COUNT = 35;
+    static const int LEXEME_COUNT = 37;
     string lexemes[LEXEME_COUNT] = {"+", "-", "*", "/", "%", "(", ")", "{", "}", ",", ";", "||", "&&",
                         "=", "==", "!", "!=", "<", "<=", ">", ">=", "bool", "do", "else", "false", "float", "for",
-                        "if", "int", "printf", "return", "scanf", "true", "void", "while"};
+                        "if", "int", "printf", "return", "scanf", "true", "void", "while", "[", "]"};
   ifstream *sourceCodeFile;
   bool validLexeme(string &, char, string[]);
   bool checkLongLexeme(string &, string &);

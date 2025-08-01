@@ -46,8 +46,8 @@ ostream& operator<<(ostream& os, const Token& t)
     "RBRACE", "COMMA", "SEMICOLON", "OR", "AND", "ASSIGN", "EQL", "NOT", "NEQ",
     "LSS", "LEQ", "GTR", "GEQ", "BOOLSYM", "DOSYM", "ELSESYM", "FALSESYM",
     "FLOATSYM", "FORSYM", "IFSYM", "INTSYM", "PRINTFSYM", "RETURNSYM",
-    "SCANFSYM", "TRUESYM", "VOIDSYM", "WHILESYM", "IDENT", "NUMLIT", "EOI",
-    "NAL"
+    "SCANFSYM", "TRUESYM", "VOIDSYM", "WHILESYM", "IDENT", "NUMLIT",
+    "LBRACKET", "RBRACKET", "EOI", "NAL"
   };
 
   os << "Next token is: " << tcs[t.tokenCode];
